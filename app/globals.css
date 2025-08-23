@@ -1,0 +1,188 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Updated to use #C8AAAA (dusty rose) and #574964 (dark purple) with black/white/grey text */
+  --background: #ffffff; /* White background */
+  --foreground: #000000; /* Black text */
+  --card: #f8f8f8; /* Light grey cards */
+  --card-foreground: #000000; /* Black card text */
+  --popover: #ffffff; /* White popover */
+  --popover-foreground: #000000; /* Black popover text */
+  --primary: #574964; /* Dark purple primary */
+  --primary-foreground: #ffffff; /* White text on primary */
+  --secondary: #c8aaaa; /* Dusty rose secondary */
+  --secondary-foreground: #000000; /* Black text on secondary */
+  --muted: #f5f5f5; /* Light grey muted */
+  --muted-foreground: #666666; /* Grey muted text */
+  --accent: #c8aaaa; /* Dusty rose accent */
+  --accent-foreground: #000000; /* Black text on accent */
+  --destructive: #dc2626; /* Red destructive */
+  --destructive-foreground: #ffffff; /* White text on destructive */
+  --border: #e5e5e5; /* Light grey border */
+  --input: #ffffff; /* White input */
+  --ring: #574964; /* Dark purple ring */
+  --chart-1: #574964; /* Dark purple */
+  --chart-2: #c8aaaa; /* Dusty rose */
+  --chart-3: #8b7a8b; /* Medium purple */
+  --chart-4: #d4c4c4; /* Light dusty rose */
+  --chart-5: #a394a3; /* Medium dusty rose */
+  --radius: 0.75rem;
+  --sidebar: #ffffff; /* White sidebar */
+  --sidebar-foreground: #000000; /* Black sidebar text */
+  --sidebar-primary: #574964; /* Dark purple sidebar primary */
+  --sidebar-primary-foreground: #ffffff; /* White sidebar primary text */
+  --sidebar-accent: #c8aaaa; /* Dusty rose sidebar accent */
+  --sidebar-accent-foreground: #000000; /* Black sidebar accent text */
+  --sidebar-border: #e5e5e5; /* Light grey sidebar border */
+  --sidebar-ring: #574964; /* Dark purple sidebar ring */
+}
+
+.dark {
+  /* Updated dark mode with proper contrast using the new color palette */
+  --background: #1a1a1a;
+  --foreground: #ffffff;
+  --card: #2a2a2a;
+  --card-foreground: #ffffff;
+  --popover: #2a2a2a;
+  --popover-foreground: #ffffff;
+  --primary: #c8aaaa;
+  --primary-foreground: #000000;
+  --secondary: #574964;
+  --secondary-foreground: #ffffff;
+  --muted: #3a3a3a;
+  --muted-foreground: #cccccc;
+  --accent: #c8aaaa;
+  --accent-foreground: #000000;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #3a3a3a;
+  --input: #2a2a2a;
+  --ring: #c8aaaa;
+  --chart-1: #c8aaaa;
+  --chart-2: #574964;
+  --chart-3: #8b7a8b;
+  --chart-4: #d4c4c4;
+  --chart-5: #a394a3;
+  --sidebar: #2a2a2a;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #c8aaaa;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: #574964;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #3a3a3a;
+  --sidebar-ring: #c8aaaa;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  /* Added DM Sans font family variables */
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+}
+
+/* Added bright animated background patterns and enhanced visual effects */
+@layer utilities {
+  .bg-grid-pattern {
+    background-image: radial-gradient(circle at 1px 1px, rgba(200, 170, 170, 0.1) 1px, transparent 0);
+    background-size: 20px 20px;
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .animate-pulse-slow {
+    animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .animate-bounce-slow {
+    animation: bounce 3s infinite;
+  }
+
+  .gradient-border {
+    background: linear-gradient(white, white) padding-box,
+      linear-gradient(45deg, var(--primary), var(--secondary), var(--accent)) border-box;
+    border: 2px solid transparent;
+  }
+
+  /* Updated gradient utilities for dusty rose and dark purple theme */
+  .bg-purple-rose-gradient {
+    background: linear-gradient(135deg, #574964, #c8aaaa);
+  }
+
+  .bg-rose-purple-gradient {
+    background: linear-gradient(135deg, #c8aaaa, #574964);
+  }
+
+  .text-gradient-purple {
+    background: linear-gradient(135deg, #574964, #8b7a8b);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .shadow-purple-glow {
+    box-shadow: 0 0 20px rgba(87, 73, 100, 0.3);
+  }
+
+  .shadow-rose-glow {
+    box-shadow: 0 0 20px rgba(200, 170, 170, 0.3);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
