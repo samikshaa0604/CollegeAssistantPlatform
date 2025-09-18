@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState ,useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line } from "recharts"
-import { Target, TrendingUp, BookOpen, ExternalLink, Filter, Star, Building2, Users } from "lucide-react"
+import { Target, TrendingUp, BookOpen, ExternalLink, Filter, Star, Building2, Users, Bell, Download, GraduationCap, Calendar, ChevronRight, Crown } from "lucide-react"
 
 interface Subject {
   name: string
@@ -29,15 +29,39 @@ interface Company {
 }
 
 export default function PlacementRoadmap() {
-  const [selectedDepartment, setSelectedDepartment] = useState("Computer Science Engineering")
-  const [selectedSemester, setSelectedSemester] = useState("6")
+  const [selectedDepartment, setSelectedDepartment] = useState("CSE")
+const [selectedSemester, setSelectedSemester] = useState("VI")
   const [selectedCompany, setSelectedCompany] = useState("All Companies")
 
+  const [syllabus, setSyllabus] = useState<{ title: string; url: string }[]>([])
+  const [loadingSyllabus, setLoadingSyllabus] = useState(false)
+
+  // NEW: lightweight auth-less profile state (client-only)
+  const [username] = useState("Student")
+
+  // NEW: saved resources (bookmarks)
+  const [savedResources, setSavedResources] = useState<{ platform: string; url: string; subject: string }[]>([])
+
+  // NEW: topic completion by subject -> Set of topic names
+  const [completedTopics, setCompletedTopics] = useState<Record<string, Set<string>>>({})
+
+  // NEW: notifications panel toggle
+  const [showNotifications, setShowNotifications] = useState(false)
+  
   const departments = [
-    "Computer Science Engineering",
-    "Electronics & Communication Engineering",
+    "Civil Engineering",
+    "Mechanical/Production Engineering",
+    "Electrical & Electronics Engineering",
+    "Electronics & Communications Engineering",
+    "CSE",
+    "CSE(AIML) & AIML",
+    "CSE (IOT & CSBCT)",
     "Information Technology",
-    "Mechanical Engineering",
+    "AI&DS",
+    "Chemical Engineering",
+    "Bio Technology",
+    "MCA",
+    "CBIT-School of Management Studies",
   ]
 
   const companies = [
@@ -173,27 +197,204 @@ export default function PlacementRoadmap() {
     },
   }
 
+  // ---------- NEW: Events & Deadlines ----------
+  const upcomingEvents = [
+    { title: "Google Internship Applications Open", date: "2025-09-05", link: "https://careers.google.com/", type: "Applications" },
+    { title: "LeetCode Weekly Contest #420", date: "2025-08-31", link: "https://leetcode.com/contest/", type: "Contest" },
+    { title: "Hackathon: Smart India 2025 Reg Close", date: "2025-09-20", link: "https://www.sih.gov.in/", type: "Hackathon" },
+    { title: "Campus Career Fair", date: "2025-10-10", link: "#", type: "Career" },
+  ]
+
+  const daysLeft = (iso: string) => {
+    const now = new Date()
+    const due = new Date(iso)
+    const diff = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    return diff
+  }
+    useEffect(() => {
+    if (!selectedSemester || !selectedDepartment) return
+    const fetchSyllabus = async () => {
+      setLoadingSyllabus(true)
+      try {
+        const res = await fetch(`/api/syllabus?branch=${encodeURIComponent(selectedDepartment)}&sem=${selectedSemester}`)
+        const data = await res.json()
+        setSyllabus(data.syllabus || [])
+      } catch (err) {
+        console.error("Failed to fetch syllabus", err)
+        setSyllabus([])
+      } finally {
+        setLoadingSyllabus(false)
+      }
+    }
+    fetchSyllabus()
+  }, [selectedDepartment, selectedSemester])
+
+  // ---------- NEW: Derived Progress & Score ----------
+  const subjectProgress = useMemo(() => {
+    const out: Record<string, number> = {}
+    subjectDetails.forEach((s) => {
+      const done = completedTopics[s.name]?.size ?? 0
+      const total = s.topics.length
+      out[s.name] = total === 0 ? 0 : Math.round((done / total) * 100)
+    })
+    return out
+  }, [completedTopics, subjectDetails])
+
+  const overallProgress = useMemo(() => {
+    const vals = Object.values(subjectProgress)
+    if (!vals.length) return 0
+    return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)
+  }, [subjectProgress])
+
+  const resumeScore = useMemo(() => {
+    // Simple heuristic: progress weight + bookmarks + targeted company rigor
+    const base = overallProgress
+    const bonus = Math.min(savedResources.length * 2, 20) // up to +20
+    const rigor = selectedCompany === "All Companies" ? 0 : (companyData.find(c => c.name === selectedCompany)?.difficulty === "Hard" ? 10 : 5)
+    return Math.min(base + bonus + rigor, 100)
+  }, [overallProgress, savedResources.length, selectedCompany])
+
+  // ---------- NEW: Notifications (derived) ----------
+  const notifications = useMemo(() => {
+    const near = upcomingEvents.filter(e => daysLeft(e.date) <= 7 && daysLeft(e.date) >= 0)
+    const prog = overallProgress < 50 ? [{ title: "Your roadmap is below 50% complete", type: "Progress" }] : []
+    const companyNudge = selectedCompany !== "All Companies" ? [{ title: `${selectedCompany} prep: Focus on ${companyData.find(c=>c.name===selectedCompany)?.subjects.join(", ")}` , type: "Company"}] : []
+    return [
+      ...near.map(n => ({ title: `${n.title} in ${daysLeft(n.date)} days`, type: n.type })),
+      ...prog,
+      ...companyNudge,
+    ]
+  }, [upcomingEvents, overallProgress, selectedCompany])
+
+  // ---------- NEW: helpers ----------
+  const toggleTopic = (subject: string, topic: string) => {
+    setCompletedTopics((prev) => {
+      const copy = { ...prev }
+      const set = new Set(copy[subject] ?? [])
+      if (set.has(topic)) set.delete(topic)
+      else set.add(topic)
+      copy[subject] = set
+      return copy
+    })
+  }
+
+  const isSaved = (url: string) => savedResources.some((r) => r.url === url)
+
+  const toggleSave = (platform: string, url: string, subject: string) => {
+    setSavedResources((prev) => {
+      if (prev.some((r) => r.url === url)) return prev.filter((r) => r.url !== url)
+      return [...prev, { platform, url, subject }]
+    })
+  }
+
+  // ---------- NEW: Export ----------
+  const exportJSON = () => {
+    const payload = {
+      username,
+      selectedDepartment,
+      selectedSemester,
+      selectedCompany,
+      progress: subjectProgress,
+      savedResources,
+      generatedAt: new Date().toISOString(),
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `roadmap-${selectedDepartment.replace(/\s+/g, "_")}-sem${selectedSemester}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const exportCSV = () => {
+    const rows = [["Subject", "Progress(%)"], ...Object.entries(subjectProgress)]
+    const csv = rows.map((r) => r.join(",")).join("\n")
+    const blob = new Blob([csv], { type: "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `progress-${selectedDepartment.replace(/\s+/g, "_")}-sem${selectedSemester}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // ---------- UI ----------
   return (
     <div className="min-h-screen bg-background p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
-        {/* Header */}
-        <div className="space-y-2">
+      {/* Top strip - simple & clean like LeetCode */}
+      <div className="mx-auto max-w-7xl">
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Target className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold text-foreground">Placement Roadmap Dashboard</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Placement Roadmap</h1>
           </div>
-          <p className="text-muted-foreground">
-            Interactive insights and roadmaps for successful placements with company-wise requirements and practice
-            resources.
-          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowNotifications((s) => !s)}>
+              <Bell className="h-4 w-4 mr-2" /> Notifications ({notifications.length})
+            </Button>
+            <Button variant="outline" size="sm" onClick={exportCSV}>
+              <Download className="h-4 w-4 mr-2" /> CSV
+            </Button>
+            <Button size="sm" onClick={exportJSON}>
+              <Download className="h-4 w-4 mr-2" /> Export Roadmap
+            </Button>
+          </div>
+        </div>
+
+        {/* Simple summary like LC header */}
+        <div className="grid gap-4 md:grid-cols-4 mb-6">
+          <Card>
+            <CardContent className="flex items-center gap-4 p-6">
+              <div className="rounded-full bg-primary/10 p-3">
+                <TrendingUp className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-foreground">{overallProgress}%</div>
+                <p className="text-sm text-muted-foreground">Overall Progress</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex items-center gap-4 p-6">
+              <div className="rounded-full bg-secondary/10 p-3">
+                <Building2 className="h-6 w-6 text-secondary" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-foreground">150+</div>
+                <p className="text-sm text-muted-foreground">Partner Companies</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex items-center gap-4 p-6">
+              <div className="rounded-full bg-chart-3/10 p-3">
+                <Crown className="h-6 w-6 text-chart-3" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-foreground">{resumeScore}</div>
+                <p className="text-sm text-muted-foreground">Resume Score (ATS)</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex items-center gap-4 p-6">
+              <div className="rounded-full bg-chart-4/10 p-3">
+                <Users className="h-6 w-6 text-chart-4" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-foreground">Welcome, {username}</div>
+                <p className="text-sm text-muted-foreground">Dept: {selectedDepartment.split(" ")[0]} | Sem {selectedSemester}</p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Filters */}
-        <Card>
+        <Card className="mb-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filters
+              <Filter className="h-5 w-5" /> Filters
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -220,7 +421,7 @@ export default function PlacementRoadmap() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {["5", "6", "7", "8"].map((sem) => (
+                    {["V", "VI", "VII", "VIII"].map((sem) => (
                       <SelectItem key={sem} value={sem}>
                         Semester {sem}
                       </SelectItem>
@@ -247,65 +448,80 @@ export default function PlacementRoadmap() {
           </CardContent>
         </Card>
 
-        {/* Stats Overview */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardContent className="flex items-center gap-4 p-6">
-              <div className="rounded-full bg-primary/10 p-3">
-                <TrendingUp className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-foreground">94%</div>
-                <p className="text-sm text-muted-foreground">Placement Rate</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex items-center gap-4 p-6">
-              <div className="rounded-full bg-secondary/10 p-3">
-                <Building2 className="h-6 w-6 text-secondary" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-foreground">150+</div>
-                <p className="text-sm text-muted-foreground">Partner Companies</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex items-center gap-4 p-6">
-              <div className="rounded-full bg-chart-3/10 p-3">
-                <Star className="h-6 w-6 text-chart-3" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-foreground">₹21.2L</div>
-                <p className="text-sm text-muted-foreground">Avg Package</p>
+        {/* Notifications panel */}
+        {showNotifications && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5"/> Notifications</CardTitle>
+              <CardDescription>Smart nudges based on your deadlines and goals</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {notifications.length === 0 && (
+                  <div className="text-sm text-muted-foreground">You are all caught up 🎉</div>
+                )}
+                {notifications.map((n, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 rounded-lg border">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">{n.type}</Badge>
+                      <span className="text-sm text-foreground">{n.title}</span>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="flex items-center gap-4 p-6">
-              <div className="rounded-full bg-chart-4/10 p-3">
-                <Users className="h-6 w-6 text-chart-4" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-foreground">450+</div>
-                <p className="text-sm text-muted-foreground">Students Placed</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        )}
 
         <Tabs defaultValue="subjects" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="subjects">Subject Importance</TabsTrigger>
             <TabsTrigger value="companies">Company Analysis</TabsTrigger>
             <TabsTrigger value="roadmap">Learning Roadmap</TabsTrigger>
             <TabsTrigger value="trends">Placement Trends</TabsTrigger>
+            <TabsTrigger value="events">Events & Tracker</TabsTrigger>
+            <TabsTrigger value="syllabus">Semester Syllabus</TabsTrigger>
           </TabsList>
 
+          <TabsContent value="syllabus">
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <BookOpen className="h-5 w-5" />
+          Syllabus - {selectedDepartment} (Sem {selectedSemester})
+        </CardTitle>
+        <CardDescription>Fetched live from CBIT site</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {loadingSyllabus && <p>Loading syllabus...</p>}
+        {!loadingSyllabus && syllabus.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            No syllabus found for {selectedDepartment}, Semester {selectedSemester}.
+          </p>
+        )}
+        {!loadingSyllabus && syllabus.length > 0 && (
+          <ul className="space-y-3">
+            {syllabus.map((s, i) => (
+              <li key={i} className="flex items-center justify-between border p-3 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">PDF</Badge>
+                  <span className="font-medium">{s.title}</span>
+                </div>
+                <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 flex items-center gap-1">
+                  <ExternalLink className="h-4 w-4" /> Open
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  </TabsContent>
+
+          {/* SUBJECTS */}
           <TabsContent value="subjects" className="space-y-6">
             <div className="grid gap-6 lg:grid-cols-2">
-              {/* Subject Importance Chart */}
               <Card>
                 <CardHeader>
                   <CardTitle>Subject Importance Rankings</CardTitle>
@@ -326,31 +542,36 @@ export default function PlacementRoadmap() {
                 </CardContent>
               </Card>
 
-              {/* Subject Details */}
+              {/* Subject Details with progress */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Subject Details</CardTitle>
-                  <CardDescription>Detailed breakdown of key subjects</CardDescription>
+                  <CardTitle>Your Subject Progress</CardTitle>
+                  <CardDescription>Mark topics done to update progress</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {subjectDetails.slice(0, 3).map((subject) => (
                     <div key={subject.name} className="space-y-3 border-b border-border pb-4 last:border-b-0">
                       <div className="flex items-center justify-between">
                         <h4 className="font-medium text-foreground">{subject.name}</h4>
-                        <Badge variant="secondary">{subject.importance}% Important</Badge>
+                        <Badge variant="secondary">{subjectProgress[subject.name] ?? 0}%</Badge>
                       </div>
-                      <Progress value={subject.importance} className="h-2" />
-                      <div className="flex flex-wrap gap-1">
-                        {subject.companies.slice(0, 4).map((company) => (
-                          <Badge key={company} variant="outline" className="text-xs">
-                            {company}
-                          </Badge>
-                        ))}
-                        {subject.companies.length > 4 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{subject.companies.length - 4} more
-                          </Badge>
-                        )}
+                      <Progress value={subjectProgress[subject.name] ?? 0} className="h-2" />
+                      {/* topic checkboxes */}
+                      <div className="grid md:grid-cols-2 gap-2">
+                        {subject.topics.map((topic) => {
+                          const checked = completedTopics[subject.name]?.has(topic) ?? false
+                          return (
+                            <label key={topic} className="flex items-center gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleTopic(subject.name, topic)}
+                                className="h-4 w-4 rounded border"
+                              />
+                              <span className={checked ? "line-through text-muted-foreground" : "text-foreground"}>{topic}</span>
+                            </label>
+                          )
+                        })}
                       </div>
                     </div>
                   ))}
@@ -359,6 +580,7 @@ export default function PlacementRoadmap() {
             </div>
           </TabsContent>
 
+          {/* COMPANIES */}
           <TabsContent value="companies" className="space-y-6">
             <div className="grid gap-6">
               <Card>
@@ -369,10 +591,7 @@ export default function PlacementRoadmap() {
                 <CardContent>
                   <div className="space-y-4">
                     {companyData.map((company) => (
-                      <div
-                        key={company.name}
-                        className="flex items-center justify-between p-4 border border-border rounded-lg"
-                      >
+                      <div key={company.name} className="flex items-center justify-between p-4 border border-border rounded-lg">
                         <div className="space-y-2">
                           <div className="flex items-center gap-3">
                             <h4 className="font-medium text-foreground">{company.name}</h4>
@@ -397,9 +616,33 @@ export default function PlacementRoadmap() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Mentorship & Alumni */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><GraduationCap className="h-5 w-5"/> Mentorship & Alumni</CardTitle>
+                  <CardDescription>Connect with mentors and learn from alumni journeys</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid md:grid-cols-3 gap-4">
+                    {[{name:"Ananya Singh", role:"SDE", company:"Google"},{name:"Rohit Verma", role:"SDE-II", company:"Microsoft"},{name:"Meera N.", role:"Systems Engineer", company:"Amazon"}].map((m) => (
+                      <Card key={m.name} className="p-4">
+                        <div className="font-medium text-foreground">{m.name}</div>
+                        <div className="text-sm text-muted-foreground">{m.role} • {m.company}</div>
+                        <div className="mt-3 flex gap-2">
+                          <Badge variant="outline">Mock Interview</Badge>
+                          <Badge variant="outline">Resume Review</Badge>
+                        </div>
+                        <Button className="mt-4 w-full" variant="outline">Request Mentorship</Button>
+                      </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
 
+          {/* ROADMAP */}
           <TabsContent value="roadmap" className="space-y-6">
             <div className="grid gap-6">
               {subjectDetails.map((subject) => (
@@ -413,7 +656,10 @@ export default function PlacementRoadmap() {
                         </CardTitle>
                         <CardDescription>Essential for {subject.companies.length} top companies</CardDescription>
                       </div>
-                      <Badge variant="secondary">{subject.importance}% Important</Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">{subject.importance}% Important</Badge>
+                        <Badge variant="outline">{subjectProgress[subject.name] ?? 0}% Done</Badge>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-6">
@@ -433,12 +679,20 @@ export default function PlacementRoadmap() {
                     <div>
                       <h4 className="font-medium text-foreground mb-2">Key Topics to Master</h4>
                       <div className="grid gap-2 md:grid-cols-2">
-                        {subject.topics.map((topic) => (
-                          <div key={topic} className="flex items-center gap-2">
-                            <div className="h-2 w-2 rounded-full bg-primary" />
-                            <span className="text-sm text-foreground">{topic}</span>
-                          </div>
-                        ))}
+                        {subject.topics.map((topic) => {
+                          const checked = completedTopics[subject.name]?.has(topic) ?? false
+                          return (
+                            <label key={topic} className="flex items-center gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleTopic(subject.name, topic)}
+                                className="h-4 w-4 rounded border"
+                              />
+                              <span className={checked ? "line-through text-muted-foreground" : "text-foreground"}>{topic}</span>
+                            </label>
+                          )
+                        })}
                       </div>
                     </div>
 
@@ -453,11 +707,16 @@ export default function PlacementRoadmap() {
                                 <h5 className="font-medium text-foreground">{link.platform}</h5>
                                 <p className="text-sm text-muted-foreground">{link.count} problems</p>
                               </div>
-                              <Button size="sm" variant="outline" asChild>
-                                <a href={link.url} target="_blank" rel="noopener noreferrer">
-                                  <ExternalLink className="h-4 w-4" />
-                                </a>
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                <Button size="sm" variant="outline" asChild>
+                                  <a href={link.url} target="_blank" rel="noopener noreferrer">
+                                    <ExternalLink className="h-4 w-4" />
+                                  </a>
+                                </Button>
+                                <Button size="icon" variant={isSaved(link.url) ? "default" : "outline"} onClick={() => toggleSave(link.platform, link.url, subject.name)}>
+                                  <Star className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </div>
                           </Card>
                         ))}
@@ -469,6 +728,7 @@ export default function PlacementRoadmap() {
             </div>
           </TabsContent>
 
+          {/* TRENDS */}
           <TabsContent value="trends" className="space-y-6">
             <Card>
               <CardHeader>
@@ -484,25 +744,123 @@ export default function PlacementRoadmap() {
                       <YAxis yAxisId="left" />
                       <YAxis yAxisId="right" orientation="right" />
                       <ChartTooltip content={<ChartTooltipContent />} />
-                      <Line
-                        yAxisId="left"
-                        type="monotone"
-                        dataKey="placed"
-                        stroke={chartConfig.placed.color}
-                        strokeWidth={3}
-                      />
-                      <Line
-                        yAxisId="right"
-                        type="monotone"
-                        dataKey="package"
-                        stroke={chartConfig.package.color}
-                        strokeWidth={3}
-                      />
+                      <Line yAxisId="left" type="monotone" dataKey="placed" stroke={chartConfig.placed.color} strokeWidth={3} />
+                      <Line yAxisId="right" type="monotone" dataKey="package" stroke={chartConfig.package.color} strokeWidth={3} />
                     </LineChart>
                   </ResponsiveContainer>
                 </ChartContainer>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* EVENTS, DEADLINES, FAVORITES, HEALTH */}
+          <TabsContent value="events" className="space-y-6">
+            <div className="grid gap-6 md:grid-cols-3">
+              {/* Upcoming Events */}
+              <Card className="md:col-span-2">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Calendar className="h-5 w-5"/> Upcoming Events & Deadlines</CardTitle>
+                  <CardDescription>Stay on top of contests, hackathons, and application windows</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {upcomingEvents.map((e) => (
+                      <div key={e.title} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <Badge variant="secondary">{e.type}</Badge>
+                          <div>
+                            <div className="font-medium text-foreground">{e.title}</div>
+                            <div className="text-xs text-muted-foreground">Due: {new Date(e.date).toDateString()}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className={`text-sm ${daysLeft(e.date) < 0 ? "text-muted-foreground" : daysLeft(e.date) <= 3 ? "text-red-600" : "text-foreground"}`}>
+                            {daysLeft(e.date) < 0 ? "Closed" : `${daysLeft(e.date)} days left`}
+                          </div>
+                          <Button size="sm" asChild>
+                            <a href={e.link} target="_blank" rel="noreferrer">Open</a>
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Saved / Favorites */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Star className="h-5 w-5"/> Saved Resources</CardTitle>
+                  <CardDescription>Your bookmarks from practice sites</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {savedResources.length === 0 && (
+                    <div className="text-sm text-muted-foreground">No saved resources yet. Click the <Star className="inline h-3 w-3"/> on any card to save.</div>
+                  )}
+                  <div className="space-y-2">
+                    {savedResources.map((r) => (
+                      <div key={r.url} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div>
+                          <div className="text-sm font-medium text-foreground">{r.platform}</div>
+                          <div className="text-xs text-muted-foreground">{r.subject}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="outline" onClick={() => toggleSave(r.platform, r.url, r.subject)}>Remove</Button>
+                          <Button size="sm" asChild>
+                            <a href={r.url} target="_blank" rel="noreferrer">Open</a>
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Health & Sustainability (kept from your original concept) */}
+            <div className="grid gap-6 md:grid-cols-3">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Interview & Aptitude Plan</CardTitle>
+                  <CardDescription>Practice like LeetCode: daily problems + weekly mocks</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="list-disc pl-4 text-sm space-y-1">
+                    <li>Daily: 2 DSA problems (mix of easy/medium)</li>
+                    <li>Weekly: 1 mock interview, 1 aptitude set</li>
+                    <li>Tracker updates your progress score automatically</li>
+                  </ul>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Portfolio Checklist</CardTitle>
+                  <CardDescription>Simple, minimal, ATS-friendly</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="list-disc pl-4 text-sm space-y-1">
+                    <li>Resume: measurable impact bullets</li>
+                    <li>Projects: links, short demo video</li>
+                    <li>Certificates & hackathons in one Notion page</li>
+                  </ul>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Wellness & Consistency</CardTitle>
+                  <CardDescription>Guardrails to avoid burnout</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="list-disc pl-4 text-sm space-y-1">
+                    <li>3×50 min Pomodoro, 10-min breaks</li>
+                    <li>1 buffer day every 2 weeks</li>
+                    <li>Backup code & notes weekly</li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
